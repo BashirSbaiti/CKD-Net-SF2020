@@ -7,7 +7,8 @@ import time
 from sklearn.decomposition import PCA
 import matplotlib.pyplot as plt
 from sklearn.preprocessing import StandardScaler
-
+import os
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
 def findMax(df, column):
     max = -2147483648
@@ -97,11 +98,11 @@ def hidden2_model():
     model = k.Sequential()
     model.add(k.layers.InputLayer(input_shape=24))
     model.add(
-        k.layers.Dense(16, kernel_initializer="normal", activation="relu", kernel_regularizer=k.regularizers.l2(0.09)))
+        k.layers.Dense(16, kernel_initializer="normal", activation="relu", kernel_regularizer=k.regularizers.l2(0.06)))
     model.add(
-        k.layers.Dense(6, kernel_initializer="normal", activation="relu", kernel_regularizer=k.regularizers.l2(0.09)))
+        k.layers.Dense(6, kernel_initializer="normal", activation="relu", kernel_regularizer=k.regularizers.l2(0.06)))
     model.add(k.layers.Dense(1, kernel_initializer="normal", activation="sigmoid",
-                             kernel_regularizer=k.regularizers.l2(0.09)))
+                             kernel_regularizer=k.regularizers.l2(0.06)))
     model.compile(loss="binary_crossentropy", optimizer="adam", metrics=["accuracy", "mse"])
     return model
 
@@ -141,7 +142,7 @@ def train(inputs, labels, usetb, epochs=300, batchSz=32, val_split=.3, tstx=0, t
         tensorboard = k.callbacks.TensorBoard(log_dir=f"tblogs\{name}")
         model.fit(inputs, labels, epochs=epochs, verbose=0, callbacks=[tensorboard], batch_size=batchSz,
                   validation_split=val_split)
-        metrics = model.evaluate()
+        metrics = [0, 0, 0]
     else:
         model.fit(inputs, labels, epochs=epochs, verbose=0, callbacks=None, batch_size=batchSz)
         metrics = model.evaluate(tstx, tsty)
@@ -181,11 +182,14 @@ dfy = data['class']
 dfx = data.drop(columns=["class"])
 
 x = getXMatrix(normalize(dfx)).T
+np.save("data/preprocessedInputs", x)
 y = getYVector(dfy).T
+np.save("data/outputs", y)
 
 model = hidden2_model()
 
 results = train(trainx, trainy, False, tstx=testx, tsty=testy)
 print(f"loss: {results[0]}\taccuracy: {results[1]}\tMSE: {results[2]}")
+model.save("Saved models/2layerNet.h5")
 
 print(runPCA(x, "PCA/pcareal.png"))
