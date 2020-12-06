@@ -1,4 +1,3 @@
-import glob
 import numpy as np
 import pandas as pd
 from tensorflow import keras as k
@@ -6,9 +5,10 @@ from sklearn.utils import shuffle
 import time
 from sklearn.decomposition import PCA
 import matplotlib.pyplot as plt
-from sklearn.preprocessing import StandardScaler
 import os
+
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+
 
 def findMax(df, column):
     max = -2147483648
@@ -20,7 +20,7 @@ def findMax(df, column):
     return max
 
 
-def normalize(df):
+def normalize(df):  # prepossesses data so that sd=1, mean=0
     for column in ['age', 'bp', 'sg', 'al', 'su', 'bgr', 'bu', 'sc', 'sod', 'pot', 'hemo', 'pcv', 'wbcc', 'rbcc']:
         total = 0.
         count = 0.
@@ -43,7 +43,7 @@ def normalize(df):
     return df
 
 
-def basicNormalize(df):
+def basicNormalize(df):  # makes every number 0-1 by dividing each column by its max
     for column in df.columns:
         max = findMax(df, column)
         for i, val in enumerate(df[column]):
@@ -69,6 +69,16 @@ def getXMatrix(df):
         else:
             arr = np.append(arr, getVector(df, i).T, axis=1)
     return arr
+
+
+def colmean(df, col):
+    total = 0
+    count = 0
+    for val in df[col]:
+        if (val != -1):
+            total += float(val)
+            count += 1
+    return total / count
 
 
 def getYVector(df):
@@ -153,15 +163,26 @@ df = pd.read_csv("data/csv_result-chronic_kidney_disease_full.csv")
 df = shuffle(df)
 data = df.reset_index(drop=True)
 data = data.drop(columns="id")
-for col in list(df):
+for col in list(data):
     c = 0
-    for val in df[col]:
+    for val in data[col]:
         if val == "no" or val == "abnormal" or val == "notpresent" or val == "poor" or val == "ckd":
             data[col].iloc[c] = 0
         elif val == "yes" or val == "normal" or val == "present" or val == "good" or val == "notckd":
             data[col].iloc[c] = 1
         elif val == "?":
             data[col].iloc[c] = -1
+        c += 1
+
+colmeans = dict()
+for col in data.columns:
+    colmeans.update({col: colmean(data, col)})
+
+for col in list(data):
+    c = 0
+    for val in data[col]:
+        if val == -1:
+            data[col].iloc[c] = colmeans[col]
         c += 1
 
 # proper slicing
@@ -176,6 +197,8 @@ trainx = getXMatrix(normalize(traindfx)).T  # (280, 24), Keras like to have m, n
 testx = getXMatrix(normalize(testdfx)).T  # (120, 24)
 trainy = getYVector(traindfy).T  # (280, 1)
 testy = getYVector(testdfy).T  # (120, 1)
+np.save("data/testx", testx)
+np.save("data/testy", testy)
 
 # keras automatically does validation split for tb
 dfy = data['class']
