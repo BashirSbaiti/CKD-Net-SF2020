@@ -6,6 +6,7 @@ import time
 from sklearn.decomposition import PCA
 import matplotlib.pyplot as plt
 import os
+import json
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
@@ -20,7 +21,9 @@ def findMax(df, column):
     return max
 
 
-def normalize(df):  # prepossesses data so that sd=1, mean=0
+def normalize(df, returnParams=False):  # prepossesses data so that sd=1, mean=0
+    means = dict()
+    sigmas = dict()
     for column in ['age', 'bp', 'sg', 'al', 'su', 'bgr', 'bu', 'sc', 'sod', 'pot', 'hemo', 'pcv', 'wbcc', 'rbcc']:
         total = 0.
         count = 0.
@@ -40,6 +43,10 @@ def normalize(df):  # prepossesses data so that sd=1, mean=0
         for i, val in enumerate(df[column]):
             if float(val) != -1:
                 df[column].iloc[i] = float(val) / (sigma2 ** .5)
+        means.update({column: mean})
+        sigmas.update({column: sigma2**.5})
+    if returnParams:
+        return df, sigmas, means
     return df
 
 
@@ -160,8 +167,8 @@ def train(inputs, labels, usetb, epochs=300, batchSz=32, val_split=.3, tstx=0, t
 
 
 df = pd.read_csv("data/csv_result-chronic_kidney_disease_full.csv")
-df = shuffle(df)
-data = df.reset_index(drop=True)
+data = shuffle(df)
+data = data.reset_index(drop=True)
 data = data.drop(columns="id")
 for col in list(data):
     c = 0
@@ -177,6 +184,11 @@ for col in list(data):
 colmeans = dict()
 for col in data.columns:
     colmeans.update({col: colmean(data, col)})
+
+json1 = json.dumps(colmeans)
+f = open("data/colmeans.json", "w")
+f.write(json1)
+f.close()
 
 for col in list(data):
     c = 0
@@ -204,10 +216,15 @@ np.save("data/testy", testy)
 dfy = data['class']
 dfx = data.drop(columns=["class"])
 
-x = getXMatrix(normalize(dfx)).T
+x, sigmas, means = normalize(dfx, True)
+x = getXMatrix(x).T
 np.save("data/preprocessedInputs", x)
 y = getYVector(dfy).T
 np.save("data/outputs", y)
+json2 = json.dumps(sigmas)
+f = open("data/sigmas.json", "w")
+f.write(json2)
+f.close()
 
 model = hidden2_model()
 
