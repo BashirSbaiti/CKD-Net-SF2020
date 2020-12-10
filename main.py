@@ -103,14 +103,6 @@ def baseline_model():
     return model
 
 
-def baseline_old():
-    model = k.Sequential()
-    model.add(k.layers.Dense(10, input_dim=24, kernel_initializer="normal", activation="relu"))
-    model.add(k.layers.Dense(1, kernel_initializer="normal", activation="sigmoid"))
-    model.compile(loss="binary_crossentropy", optimizer="adam", metrics=["accuracy", "mse"])
-    return model
-
-
 def hidden2_model():
     model = k.Sequential()
     model.add(k.layers.InputLayer(input_shape=24))
@@ -228,8 +220,9 @@ f.close()
 
 model = hidden2_model()
 
-results = train(trainx, trainy, False, tstx=testx, tsty=testy)
+results = train(trainx, trainy, False, epochs=150, tstx=testx, tsty=testy)
 print(f"loss: {results[0]}\taccuracy: {results[1]}\tMSE: {results[2]}")
 model.save("Saved models/2layerNet.h5")
 
 print(runPCA(x, "PCA/pcareal.png"))
+
