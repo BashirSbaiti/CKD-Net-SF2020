@@ -220,7 +220,7 @@ f.close()
 
 model = hidden2_model()
 
-results = train(trainx, trainy, False, epochs=150, tstx=testx, tsty=testy)
+results = train(trainx, trainy, False, epochs=300, tstx=testx, tsty=testy)
 print(f"loss: {results[0]}\taccuracy: {results[1]}\tMSE: {results[2]}")
 model.save("Saved models/2layerNet.h5")
 
