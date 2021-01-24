@@ -218,7 +218,7 @@ f = open("data/sigmas.json", "w")
 f.write(json2)
 f.close()
 
-model = hidden2_model()
+model = baseline_model()
 
 results = train(trainx, trainy, False, epochs=300, tstx=testx, tsty=testy)
 print(f"loss: {results[0]}\taccuracy: {results[1]}\tMSE: {results[2]}")

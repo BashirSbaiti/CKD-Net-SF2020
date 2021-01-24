@@ -39,22 +39,23 @@ def evaluate(x, y):
     spec = float(tn) / (tn + fp)
     perc = float(tp) / (tp + fp)
     npv = float(tn) / (tn + fn)
+    acc = float((tp) + tn) / (fn+fp+tn+tp)
     f1 = 2 * ((perc * sens) / (perc + sens))
 
-    return [[sens, spec, perc, npv, f1], confMatrix]
+    return [[sens, spec, perc, npv, acc, f1], confMatrix]
 
 
 print("------------Insample------------")
 results = evaluate(x, y)
-sens, spec, perc, npv, f1 = results[0]
+sens, spec, perc, npv, acc, f1 = results[0]
 confMatrix = results[1]
 print(f"Confusion matrix: {confMatrix}")
 print(
-        f"sensitivity: {sens}\nspecificity: {spec}\nprecision: {perc}\nNegative Predictive Value: {npv}\nF1 Score: {f1}")
+        f"sensitivity: {sens}\nspecificity: {spec}\nprecision: {perc}\nNegative Predictive Value: {npv}\nAccuracy: {acc}\nF1 Score: {f1}")
 print("------------Out of Sample------------")
 results2 = evaluate(oosx, oosy)
-sens, spec, perc, npv, f1 = results2[0]
+sens, spec, perc, npv, acc, f1 = results2[0]
 confMatrix = results2[1]
 print(f"Confusion matrix: {confMatrix}")
 print(
-        f"sensitivity: {sens}\nspecificity: {spec}\nprecision: {perc}\nNegative Predictive Value: {npv}\nF1 Score: {f1}")
+        f"sensitivity: {sens}\nspecificity: {spec}\nprecision: {perc}\nNegative Predictive Value: {npv}\nAccuracy: {acc}\nF1 Score: {f1}")
