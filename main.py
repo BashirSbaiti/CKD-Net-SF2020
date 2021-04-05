@@ -44,7 +44,7 @@ def normalize(df, returnParams=False):  # prepossesses data so that sd=1, mean=0
             if float(val) != -1:
                 df[column].iloc[i] = float(val) / (sigma2 ** .5)
         means.update({column: mean})
-        sigmas.update({column: sigma2**.5})
+        sigmas.update({column: sigma2 ** .5})
     if returnParams:
         return df, sigmas, means
     return df
@@ -97,30 +97,40 @@ def getYVector(df):
 def baseline_model():
     model = k.Sequential()
     model.add(k.layers.InputLayer(input_shape=24))
-    model.add(k.layers.Dense(10, kernel_initializer="normal", activation="relu"))
-    model.add(k.layers.Dense(1, kernel_initializer="normal", activation="sigmoid"))
-    model.compile(loss="binary_crossentropy", optimizer="adam", metrics=["accuracy", "mse"])
+    model.add(k.layers.Dense(1,
+                             kernel_initializer="normal",
+                             activation="sigmoid"))
+    model.compile(loss="binary_crossentropy",
+                  optimizer="adam",
+                  metrics=["accuracy", "mse"])
     return model
 
 
-def hidden2_model():
+def hidden2_model(l2 = .005):
     model = k.Sequential()
     model.add(k.layers.InputLayer(input_shape=24))
     model.add(
-        k.layers.Dense(16, kernel_initializer="normal", activation="relu", kernel_regularizer=k.regularizers.l2(0.06)))
+        k.layers.Dense(16, kernel_initializer="normal",
+                       activation="relu",
+                       kernel_regularizer=k.regularizers.l2(l2)))
     model.add(
-        k.layers.Dense(6, kernel_initializer="normal", activation="relu", kernel_regularizer=k.regularizers.l2(0.06)))
-    model.add(k.layers.Dense(1, kernel_initializer="normal", activation="sigmoid",
-                             kernel_regularizer=k.regularizers.l2(0.06)))
-    model.compile(loss="binary_crossentropy", optimizer="adam", metrics=["accuracy", "mse"])
+        k.layers.Dense(8, kernel_initializer="normal",
+                       activation="relu",
+                       kernel_regularizer=k.regularizers.l2(l2)))
+    model.add(k.layers.Dense(1, kernel_initializer="normal",
+                             activation="sigmoid",
+                             kernel_regularizer=k.regularizers.l2(l2)))
+    model.compile(loss="binary_crossentropy",
+                  optimizer="adam",
+                  metrics=["accuracy"])
     return model
 
 
-def runPCA(input, path):
+def runPCA(input, path, dfy):
     pca = PCA(n_components=2)
     principC = pca.fit_transform(input)
     pDf = pd.DataFrame(data=principC, columns=["PC 1", "PC 2"])
-    pDf = pd.concat([pDf, data["class"]], axis=1)
+    pDf = pd.concat([pDf, dfy], axis=1)
 
     # matplotlib code
     fig = plt.figure(figsize=(8, 8))
@@ -145,84 +155,151 @@ def runPCA(input, path):
     return tot
 
 
-def train(inputs, labels, usetb, epochs=300, batchSz=32, val_split=.3, tstx=0, tsty=0):
+def train(inputs, labels, usetb, epochs=300, batchSz=32, val_split=.3):
     if (usetb):
         name = f"CKDnet-{int(time.time())}"
         tensorboard = k.callbacks.TensorBoard(log_dir=f"tblogs\{name}")
         model.fit(inputs, labels, epochs=epochs, verbose=0, callbacks=[tensorboard], batch_size=batchSz,
                   validation_split=val_split)
-        metrics = [0, 0, 0]
     else:
         model.fit(inputs, labels, epochs=epochs, verbose=0, callbacks=None, batch_size=batchSz)
-        metrics = model.evaluate(tstx, tsty)
-    return metrics
+    return
+
+
+def evaluate(x, y):
+    c = 0
+
+    tp = 0
+    tn = 0
+    fp = 0
+    fn = 0
+
+    for pred in model.predict(x):
+        yHat = round(float(pred))
+        gtLabel = int(y[c])
+        if yHat == gtLabel and yHat == 1:
+            tp += 1
+        elif yHat == gtLabel and yHat == 0:
+            tn += 1
+        elif yHat == 1 and gtLabel == 0:
+            fp += 1
+        else:
+            fn += 1
+        c += 1
+
+    confMatrix = [[tp, fn], [fp, tn]]
+
+    sens = float(tp) / (tp + fn)
+    spec = float(tn) / (tn + fp)
+    perc = float(tp) / (tp + fp)
+    npv = float(tn) / (tn + fn)
+    acc = float((tp) + tn) / (fn + fp + tn + tp)
+    f1 = 2 * ((perc * sens) / (perc + sens))
+
+    return [[sens, spec, perc, npv, acc, f1], confMatrix]
+
+
+def splitData(df):
+    colmeans = dict()  # first, fill missing values
+    for col in df.columns:
+        colmeans.update({col: colmean(df, col)})
+    json1 = json.dumps(colmeans)
+    f = open("data/colmeans.json", "w")
+    f.write(json1)
+    f.close()
+
+    for col in list(df):  # replace missing values with averages
+        c = 0
+        for val in df[col]:
+            if val == -1:
+                df[col].iloc[c] = colmeans[col]
+            c += 1
+    data = shuffle(df)
+    data = data.reset_index(drop=True)
+    # proper slicing
+    traindf = data.iloc[:280]
+    testdf = data.iloc[280:]
+    traindfy = traindf['class']
+    testdfy = testdf['class']
+    traindfx = traindf.drop(columns=["class"])
+    testdfx = testdf.drop(columns=["class"])
+
+    trainx = getXMatrix(normalize(traindfx)).T  # (280, 24), Keras like to have m, nx for whatever reason
+    testx = getXMatrix(normalize(testdfx)).T  # (120, 24)
+    trainy = getYVector(traindfy).T  # (280, 1)
+    testy = getYVector(testdfy).T  # (120, 1)
+    np.save("data/testx", testx)
+    np.save("data/testy", testy)
+
+    # keras automatically does validation split for tb
+    dfy = data['class']
+    dfx = data.drop(columns=["class"])
+
+    return trainx, trainy, testx, testy, dfy, dfx
 
 
 df = pd.read_csv("data/csv_result-chronic_kidney_disease_full.csv")
-data = shuffle(df)
-data = data.reset_index(drop=True)
-data = data.drop(columns="id")
-for col in list(data):
+df = df.drop(columns="id")
+for col in list(df):
     c = 0
-    for val in data[col]:
+    for val in df[col]:
         if val == "no" or val == "abnormal" or val == "notpresent" or val == "poor" or val == "ckd":
-            data[col].iloc[c] = 0
+            df[col].iloc[c] = 0
         elif val == "yes" or val == "normal" or val == "present" or val == "good" or val == "notckd":
-            data[col].iloc[c] = 1
+            df[col].iloc[c] = 1
         elif val == "?":
-            data[col].iloc[c] = -1
+            df[col].iloc[c] = -1
         c += 1
 
-colmeans = dict()
-for col in data.columns:
-    colmeans.update({col: colmean(data, col)})
+trainx, trainy, testx, testy, dfy, dfx = splitData(df)
 
-json1 = json.dumps(colmeans)
-f = open("data/colmeans.json", "w")
-f.write(json1)
-f.close()
-
-for col in list(data):
-    c = 0
-    for val in data[col]:
-        if val == -1:
-            data[col].iloc[c] = colmeans[col]
-        c += 1
-
-# proper slicing
-traindf = data.iloc[:280]
-testdf = data.iloc[280:]
-traindfy = traindf['class']
-testdfy = testdf['class']
-traindfx = traindf.drop(columns=["class"])
-testdfx = testdf.drop(columns=["class"])
-
-trainx = getXMatrix(normalize(traindfx)).T  # (280, 24), Keras like to have m, nx for whatever reason
-testx = getXMatrix(normalize(testdfx)).T  # (120, 24)
-trainy = getYVector(traindfy).T  # (280, 1)
-testy = getYVector(testdfy).T  # (120, 1)
-np.save("data/testx", testx)
-np.save("data/testy", testy)
-
-# keras automatically does validation split for tb
-dfy = data['class']
-dfx = data.drop(columns=["class"])
-
-x, sigmas, means = normalize(dfx, True)
+# all calculations for entire dataset, insample and oos
+x, sigmas, means = normalize(dfx, True)  # all x's in the dataset
 x = getXMatrix(x).T
-np.save("data/preprocessedInputs", x)
-y = getYVector(dfy).T
+np.save("data/preprocessedInputs", x)  # all x's in and out of sample
+y = getYVector(dfy).T  # same for y's
 np.save("data/outputs", y)
-json2 = json.dumps(sigmas)
+json2 = json.dumps(sigmas)  # save for use when evaluating in other files for insample performance
 f = open("data/sigmas.json", "w")
 f.write(json2)
 f.close()
 
-model = baseline_model()
 
-results = train(trainx, trainy, False, epochs=300, tstx=testx, tsty=testy)
-print(f"loss: {results[0]}\taccuracy: {results[1]}\tMSE: {results[2]}")
-model.save("Saved models/2layerNet.h5")
 
-print(runPCA(x, "PCA/pcareal.png"))
+# results = train(trainx, trainy, False, epochs=300, tstx=testx, tsty=testy)
+# print(f"loss: {results[0]}\taccuracy: {results[1]}\tMSE: {results[2]}")
 
+epochs = {15}
+l2s = {0}
+
+for l2 in l2s:
+    model = baseline_model()
+    for epoch in epochs:
+        results = list()
+        for i in range(100):
+            train(trainx, trainy, False, epochs=epoch) #TODO: check layer counts
+            model.save("Saved models/2layerNet.h5")
+
+            result = evaluate(testx, testy)
+            # sens, spec, perc, npv, acc, f1 = result[0]
+            confMatrix = result[1]
+            resultLine = result[0]
+            # print(f"Confusion matrix: {confMatrix}")
+            # print(
+            #        f"sensitivity: {sens}\nspecificity: {spec}\nprecision: {perc}\nNegative Predictive Value: {npv}\nAccuracy: {acc}\nF1 Score: {f1}")
+
+            # results[i] = resultLine
+            results.append(resultLine)
+            trainx, trainy, testx, testy, dfy, dfx = splitData(df)
+
+        resultDf = pd.DataFrame(results)
+        resultDf.to_csv(f"rawresults/baseline{epoch}.csv")
+
+        #for resultLine in results:
+            #print(resultLine)
+
+        print(f"finish epoch {epoch} l2 {l2}")
+
+x = normalize(dfx, False)
+print(model.summary())
+print(runPCA(x, "PCA/PCA.png", dfy))
